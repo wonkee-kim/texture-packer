@@ -1,0 +1,22 @@
+{
+  "name": "com.wonkee.texture-packer",
+  "dependencies": {},
+  "displayName": "Texture Packer",
+  "version": "1.0.0",
+  "description": "Texture Packer packs PBR textures into one mask texture.",
+  "keywords": [
+    "Unity",
+    "Utility",
+    "Textures"
+  ],
+  "documentationUrl": "https://github.com/wonkee-kim/texture-packer",
+  "bugs": {
+    "url": "kimwonky@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wonkee-kim/texture-packer.git"
+  },
+  "license": "MIT",
+  "author": "Wonkee Kim"
+}
