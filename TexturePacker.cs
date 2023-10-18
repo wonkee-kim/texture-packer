@@ -15,13 +15,13 @@ public class TexturePacker : EditorWindow
     private Vector2 _scrollPos;
 
 #if UNITY_EDITOR
-    [MenuItem("Tools/Texture Packer")]
+    [MenuItem("Tools/Texture Packer/Texture Packer")]
     public static void ShowWindow()
     {
         _editorWindow = GetWindow(typeof(TexturePacker), false);
     }
 
-    [MenuItem("Assets/Texture Packer")]
+    [MenuItem("Assets/Texture Packer/Texture Packer")]
     public static void ShowWindowRightClick()
     {
         _editorWindow = GetWindow(typeof(TexturePacker), false);
@@ -213,6 +213,15 @@ public class TexturePacker : EditorWindow
                 EditorUtility.DisplayProgressBar("Packing Textures, please wait...", "", 1f);
                 Texture2D mask = TexturePackerUtilities.GenerateMaskTexture(pbrTexturesData);
                 TexturePackerUtilities.SaveTexturesWithPath(exportSettings, mask: mask);
+                EditorUtility.ClearProgressBar();
+            }
+
+            GUILayout.Space(5f);
+            if (GUILayout.Button("Generate Terrain Texture"))
+            {
+                EditorUtility.DisplayProgressBar("Packing Textures, please wait...", "", 1f);
+                Texture2D texture = TexturePackerUtilities.GenerateTerrainTexture(pbrTexturesData);
+                TexturePackerUtilities.SaveTerrainTexturesWithPath(exportSettings, texture);
                 EditorUtility.ClearProgressBar();
             }
 

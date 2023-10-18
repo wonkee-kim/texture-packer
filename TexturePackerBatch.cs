@@ -55,13 +55,13 @@ public class TexturePackerBatch : EditorWindow
     private Vector2 _scrollPos;
 
 #if UNITY_EDITOR
-    [MenuItem("Tools/Texture Packer (Batch)")]
+    [MenuItem("Tools/Texture Packer/Texture Packer (Batch)")]
     public static void ShowWindow()
     {
         _editorWindow = GetWindow(typeof(TexturePackerBatch), false);
     }
 
-    [MenuItem("Assets/Texture Packer (Batch)")]
+    [MenuItem("Assets/Texture Packer/Texture Packer (Batch)")]
     public static void ShowWindowRightClick()
     {
         _editorWindow = GetWindow(typeof(TexturePackerBatch), false);

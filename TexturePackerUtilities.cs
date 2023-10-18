@@ -9,6 +9,7 @@ using UnityEditor;
 
 public class TexturePackerUtilities
 {
+    private static readonly int PROP_ALBEDO_TEX = Shader.PropertyToID("_BaseMap");
     private static readonly int PROP_METALLIC_TEX = Shader.PropertyToID("_MetallicTex");
     private static readonly int PROP_SMOOTHNESS_TEX = Shader.PropertyToID("_SmoothnessTex");
     private static readonly int PROP_INVERT_SMOOTHNESS = Shader.PropertyToID("_InvertSmoothness");
@@ -26,9 +27,11 @@ public class TexturePackerUtilities
     private static readonly int PROP_BLUE_DATA = Shader.PropertyToID("_BlueData");
 
     private const string PACKER_SHADER_NAME = "Hidden/TexturePacker";
+    private const string TERRAIN_PACKER_SHADER_NAME = "Hidden/TexturePacker(Terrain)";
     private const string SUFFIX_ALBEDO = "_albedo";
     private const string SUFFIX_NORMAL = "_normal";
     private const string SUFFIX_MASK = "_mask";
+    private const string SUFFIX_TERRAIN = "_terrain";
 
     public enum SurfaceData
     {
@@ -104,8 +107,9 @@ public class TexturePackerUtilities
     }
 
     private static Material _blitMaterial;
+    private static Material _terrainBlitMaterial;
 
-#if UNITY_EDITOR
+    // #if UNITY_EDITOR
     public static void GenerateAndSaveTextures(List<PBRTexturesData> pbrTexturesDatas, ExportSettings exportSettings)
     {
         for (int i = 0; i < pbrTexturesDatas.Count; i++)
@@ -169,6 +173,39 @@ public class TexturePackerUtilities
         return result;
     }
 
+    public static Texture2D GenerateTerrainTexture(PBRTexturesData pbrTexturesData)
+    {
+        int width = pbrTexturesData.width;
+        int height = pbrTexturesData.height;
+        RenderTexture blitRenderTexture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        blitRenderTexture.useMipMap = false;
+        blitRenderTexture.filterMode = FilterMode.Bilinear;
+
+        Texture2D result = new Texture2D(width, height, TextureFormat.ARGB32, mipCount: 1, linear: false);
+
+        if (_terrainBlitMaterial == null)
+        {
+            _terrainBlitMaterial = new Material(Shader.Find(TERRAIN_PACKER_SHADER_NAME));
+        }
+
+        _terrainBlitMaterial.SetTexture(PROP_ALBEDO_TEX, pbrTexturesData.albedoTexture);
+        _terrainBlitMaterial.SetTexture(PROP_SMOOTHNESS_TEX, pbrTexturesData.smoothnessTexture);
+
+        _terrainBlitMaterial.SetInt(PROP_HAS_SMOOTHNESS, pbrTexturesData.smoothnessTexture == null ? 0 : 1);
+        _terrainBlitMaterial.SetFloat(PROP_SMOOTHNESS_DEFAULT, pbrTexturesData.smoothnessDefault);
+        _terrainBlitMaterial.SetInt(PROP_INVERT_SMOOTHNESS, pbrTexturesData.isRoughness ? 1 : 0);
+
+        Graphics.Blit(pbrTexturesData.albedoTexture, blitRenderTexture, _terrainBlitMaterial, 0);
+        // CopyTexture fails to encoding to jpg/png
+        // Graphics.CopyTexture(blitRenderTexture, result);
+        result.ReadPixels(new Rect(0, 0, blitRenderTexture.width, blitRenderTexture.height), 0, 0);
+        result.Apply();
+
+        blitRenderTexture.Release();
+
+        return result;
+    }
+
     public static void SaveTexturesWithPath(ExportSettings exportSettings, Texture2D albedo = null, Texture2D normal = null, Texture2D mask = null)
     {
         try
@@ -182,14 +219,17 @@ public class TexturePackerUtilities
             if (albedo != null)
             {
                 SaveTexture(albedo, pathAlbedo, exportSettings);
+                SetTextureImportSettings(pathAlbedo, TextureImporterType.Default, sRGBTexture: true, exportSettings);
             }
             if (normal != null)
             {
                 SaveTexture(normal, pathNormal, exportSettings);
+                SetTextureImportSettings(pathNormal, TextureImporterType.NormalMap, sRGBTexture: false, exportSettings);
             }
             if (mask != null)
             {
                 SaveTexture(mask, pathMask, exportSettings);
+                SetTextureImportSettings(pathMask, TextureImporterType.Default, sRGBTexture: false, exportSettings);
             }
 
             if (exportSettings.generateMaterial && !(exportSettings.shader == null && exportSettings.material == null))
@@ -198,19 +238,16 @@ public class TexturePackerUtilities
                 if (albedo != null)
                 {
                     material.SetTexture(exportSettings.propNameAlbedo, (Texture2D)AssetDatabase.LoadAssetAtPath(pathAlbedo, typeof(Texture2D)));
-                    SetTextureImportSettings(pathAlbedo, TextureImporterType.Default, sRGBTexture: true, exportSettings);
                 }
                 if (normal != null)
                 {
                     material.SetTexture(exportSettings.propNameNormal, (Texture2D)AssetDatabase.LoadAssetAtPath(pathNormal, typeof(Texture2D)));
-                    SetTextureImportSettings(pathNormal, TextureImporterType.NormalMap, sRGBTexture: false, exportSettings);
                 }
                 if (mask != null)
                 {
                     material.SetTexture(exportSettings.propNameMask, (Texture2D)AssetDatabase.LoadAssetAtPath(pathMask, typeof(Texture2D)));
                     material.SetFloat(exportSettings.propNameMetallic, exportSettings.metallicIfMask);
                     material.SetFloat(exportSettings.propNameSmoothness, exportSettings.smoothnessIfMask);
-                    SetTextureImportSettings(pathMask, TextureImporterType.Default, sRGBTexture: false, exportSettings);
                 }
 
                 AssetDatabase.CreateAsset(material, exportSettings.folderName + exportSettings.fileName + ".mat");
@@ -223,7 +260,21 @@ public class TexturePackerUtilities
         }
     }
 
-    public static Texture2D DuplicateTexture(Texture2D source, bool linear)
+    public static void SaveTerrainTexturesWithPath(ExportSettings exportSettings, Texture2D texture)
+    {
+        try
+        {
+            string path = exportSettings.folderName + exportSettings.fileName + SUFFIX_TERRAIN + ".png";
+            SaveTexture(texture, path, exportSettings, hasAlpha: true);
+            SetTextureImportSettings(path, TextureImporterType.Default, sRGBTexture: true, exportSettings);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError(ex);
+        }
+    }
+
+    public static Texture2D DuplicateTexture(Texture2D source, bool linear = false)
     {
         RenderTexture rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
         Texture2D result = new Texture2D(source.width, source.height);
@@ -246,10 +297,10 @@ public class TexturePackerUtilities
         SaveTexture(texture, path, exportSettings);
     }
 
-    private static void SaveTexture(Texture2D texture, string path, ExportSettings exportSettings)
+    private static void SaveTexture(Texture2D texture, string path, ExportSettings exportSettings, bool hasAlpha = false)
     {
         byte[] bytes;
-        if (exportSettings.format == Format.JPG)
+        if (exportSettings.format == Format.JPG && !hasAlpha)
         {
             bytes = ImageConversion.EncodeToJPG(texture);
         }
@@ -295,5 +346,5 @@ public class TexturePackerUtilities
         EditorUtility.SetDirty(textureImporter);
         textureImporter.SaveAndReimport();
     }
-#endif
+    // #endif
 }
